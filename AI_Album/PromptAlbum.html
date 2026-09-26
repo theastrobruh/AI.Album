@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI.Album — by theAstroBruh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        fantasy: { dark: '#07071a', card: '#120e2a', accent: '#a78bfa' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(167,139,250,.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,.6); }
+
+        /* ── Background canvas ── */
+        #starfield-canvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0; pointer-events: none;
+        }
+        .vignette {
+            position: fixed; inset: 0; z-index: 1; pointer-events: none;
+            background: radial-gradient(circle at center, transparent 25%, rgba(0,0,0,.55) 100%);
+        }
+
+        /* ── App root sits above canvas ── */
+        #app-root { position: relative; z-index: 2; }
+
+        /* ── Glow animations ── */
+        @keyframes glow-pulse {
+            0%,100% { text-shadow: 0 0 8px rgba(167,139,250,.5), 0 0 20px rgba(167,139,250,.2); }
+            50%      { text-shadow: 0 0 16px rgba(167,139,250,.9), 0 0 35px rgba(167,139,250,.4); }
+        }
+        @keyframes shimmer {
+            0%   { transform: translateX(-160%) skewX(-40deg); }
+            100% { transform: translateX(160%) skewX(-40deg); }
+        }
+        @keyframes card-glow {
+            0%,100% { box-shadow: 0 0 0 1px rgba(167,139,250,.08), 0 12px 32px rgba(0,0,0,.6); }
+            50%      { box-shadow: 0 0 0 1px rgba(167,139,250,.22), 0 16px 40px rgba(0,0,0,.7), 0 0 24px rgba(167,139,250,.1); }
+        }
+        @keyframes float-blob {
+            0%,100% { transform: translateY(0) scale(1); }
+            50%      { transform: translateY(-18px) scale(1.04); }
+        }
+
+        .glow-text { animation: glow-pulse 3.5s ease-in-out infinite; }
+
+        /* ── Glass panels ── */
+        .pill-glass {
+            background: rgba(10, 8, 28, 0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(167,139,250,.14);
+        }
+
+        /* ── Fantasy cards ── */
+        .fantasy-card {
+            background: linear-gradient(160deg, #1a1235, #0b0820);
+            border: 1px solid rgba(167,139,250,.08);
+            aspect-ratio: 2/3;
+            animation: card-glow 5s ease-in-out infinite;
+        }
+        .fantasy-card:hover { animation: none; }
+        .shimmer-host { position: relative; overflow: hidden; }
+        .shimmer-host::after {
+            content: '';
+            position: absolute; inset-y: 0; left: 0; width: 45%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent);
+            animation: shimmer 4.5s ease-in-out infinite;
+            pointer-events: none; z-index: 15;
+        }
+
+        /* ── Tag chips ── */
+        .tag-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 600; letter-spacing: .04em;
+            padding: 2px 8px; border-radius: 999px;
+            background: rgba(167,139,250,.15);
+            border: 1px solid rgba(167,139,250,.3);
+            color: #c4b5fd; cursor: pointer;
+            transition: background .15s, border-color .15s;
+        }
+        .tag-chip:hover, .tag-chip.selected {
+            background: rgba(167,139,250,.35); border-color: #a78bfa; color: #ede9fe;
+        }
+        .tag-chip.selected { box-shadow: 0 0 8px rgba(167,139,250,.4); }
+
+        /* ── Detail badge ── */
+        .detail-badge {
+            font-size: 10px; padding: 2px 7px; border-radius: 5px;
+            background: rgba(167,139,250,.12); color: #c4b5fd;
+            border: 1px solid rgba(167,139,250,.2);
+        }
+
+        /* ── Built-in badge on gallery cards ── */
+        .builtin-badge {
+            position: absolute; top: 10px; left: 10px; z-index: 20;
+            font-size: 9px; font-weight: 700; letter-spacing: .06em;
+            padding: 2px 7px; border-radius: 999px;
+            background: rgba(167,139,250,.25); border: 1px solid rgba(167,139,250,.4);
+            color: #ede9fe; backdrop-filter: blur(6px);
+        }
+
+        /* ── inputs ── */
+        .dark-input {
+            background: rgba(0,0,0,.35);
+            border: 1px solid rgba(167,139,250,.2);
+            color: #e2e8f0; border-radius: 10px;
+            padding: 8px 12px; width: 100%;
+            font-size: .875rem;
+            transition: border-color .2s;
+        }
+        .dark-input:focus { outline: none; border-color: #a78bfa; box-shadow: 0 0 0 2px rgba(167,139,250,.15); }
+        textarea.dark-input { resize: none; }
+    </style>
+</head>
+<body class="text-slate-200 font-sans min-h-screen antialiased overflow-x-hidden"
+      style="background: linear-gradient(180deg, #050510 0%, #160c28 50%, #1e0f2e 100%);">
+
+    <!-- ══ STARFIELD BACKGROUND ══ -->
+    <canvas id="starfield-canvas"></canvas>
+    <div class="vignette"></div>
+
+    <!-- ══ APP ROOT ══ -->
+    <div id="app-root">
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[200] transition-all duration-300 opacity-0 -translate-y-4 pointer-events-none">
+        <div class="pill-glass px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 text-sm font-medium">
+            <span id="toast-icon">✨</span>
+            <span id="toast-msg"></span>
+        </div>
+    </div>
+
+    <!-- ══ PROFILE SELECTOR ══ -->
+    <div id="profile-view" class="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6">
+        <div class="w-full max-w-md pill-glass p-8 rounded-3xl shadow-2xl">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-black tracking-tight text-white glow-text mb-1">AI.Album</h1>
+                <p class="text-[11px] text-slate-500 tracking-widest">by theAstroBruh</p>
+                <p class="text-slate-400 text-sm mt-4">Select a profile to continue</p>
+            </div>
+            <div id="profiles-list" class="space-y-3 mb-6 max-h-56 overflow-y-auto pr-1"></div>
+            <div class="pt-5 border-t border-white/5">
+                <form id="add-profile-form" class="flex gap-2">
+                    <input type="text" id="new-profile-name" placeholder="New profile name…" required class="dark-input flex-1">
+                    <button type="submit" class="bg-violet-500 hover:bg-violet-400 text-white font-bold px-5 rounded-xl transition-colors shadow-lg shadow-violet-500/25">+</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ MAIN APP ══ -->
+    <div id="app-view" class="hidden flex flex-col min-h-screen">
+
+        <!-- Nav -->
+        <nav class="sticky top-0 z-50 pill-glass border-b border-white/5 px-6 py-3.5">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-5">
+                    <div>
+                        <span class="text-lg font-black text-white tracking-tight glow-text">AI.Album</span>
+                        <span class="text-[9px] text-slate-600 ml-2 tracking-widest">by theAstroBruh</span>
+                    </div>
+                    <div class="h-5 w-px bg-white/10 hidden sm:block"></div>
+                    <div class="flex gap-1">
+                        <button onclick="switchTab('gallery')" id="tab-gallery" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all text-white bg-violet-600/60">My Album</button>
+                        <button onclick="switchTab('store')" id="tab-store" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-white/5">Mini-Store</button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- Filter tags bar -->
+                    <div id="tag-filter-bar" class="hidden sm:flex gap-1.5 flex-wrap"></div>
+                    <div class="h-5 w-px bg-white/10"></div>
+                    <div class="flex items-center gap-2 text-sm text-slate-400">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                        <span id="current-profile-display" class="font-medium text-slate-300"></span>
+                    </div>
+                    <!-- Backup menu -->
+                    <div class="relative group">
+                        <button class="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        </button>
+                        <div class="absolute right-0 mt-2 w-52 pill-glass rounded-xl border border-white/5 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-1.5 text-sm">
+                            <button onclick="exportData()" class="w-full text-left px-4 py-2.5 text-slate-300 hover:bg-white/5 hover:text-white transition-colors">💾 Save Game (Export)</button>
+                            <label class="w-full text-left px-4 py-2.5 text-slate-300 hover:bg-white/5 hover:text-white transition-colors cursor-pointer block">
+                                📂 Load Game (Import)
+                                <input type="file" id="import-input" class="hidden" accept=".json" onchange="importData(event)">
+                            </label>
+                            <div class="h-px bg-white/5 my-1 mx-3"></div>
+                            <button onclick="logout()" class="w-full text-left px-4 py-2.5 text-rose-400 hover:bg-white/5 hover:text-rose-300 transition-colors">↩ Switch Profile</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content -->
+        <main class="flex-1 max-w-7xl mx-auto w-full p-5 lg:p-8">
+
+            <!-- ── GALLERY TAB ── -->
+            <div id="view-gallery" class="space-y-6">
+                <div class="flex justify-between items-end gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white glow-text">Your Collection</h2>
+                        <p class="text-slate-500 text-sm mt-1">Stored locally in your browser · <span id="item-count">0</span> items</p>
+                    </div>
+                    <button onclick="openAddModal()" class="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-violet-600/25 flex items-center gap-2 whitespace-nowrap">
+                        <span>+ Add</span>
+                    </button>
+                </div>
+
+                <!-- active tag filter indicator -->
+                <div id="active-filter-notice" class="hidden items-center gap-3 text-xs text-violet-300 bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-2">
+                    <span>🔖 Filtering by tag:</span>
+                    <span id="active-filter-tag" class="font-bold"></span>
+                    <button onclick="clearTagFilter()" class="ml-auto text-slate-400 hover:text-white">✕ Clear</button>
+                </div>
+
+                <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"></div>
+
+                <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
+                    <div class="w-20 h-20 mb-5 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                        <svg class="w-9 h-9 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </div>
+                    <p class="text-base font-semibold text-slate-300">Your album is empty</p>
+                    <p class="text-sm text-slate-500 mt-1">Add your first AI generation to begin.</p>
+                </div>
+            </div>
+
+            <!-- ── STORE TAB ── -->
+            <div id="view-store" class="hidden space-y-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-white glow-text">Mini-Store</h2>
+                    <p class="text-slate-500 text-sm mt-1">Premium prompt packs · unlock your workflow</p>
+                </div>
+                <div id="store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 gap-6"></div>
+            </div>
+        </main>
+    </div><!-- /app-view -->
+
+    <!-- ══ ADD / EDIT MODAL ══ -->
+    <div id="add-image-modal" class="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm hidden flex items-start justify-center p-6 overflow-y-auto">
+        <div class="w-full max-w-xl pill-glass rounded-3xl shadow-2xl p-6 border border-violet-500/20 my-8">
+            <div class="flex justify-between items-center mb-5">
+                <h3 id="modal-title" class="text-xl font-bold text-white">Add New Memory</h3>
+                <button type="button" onclick="closeAddModal()" class="text-slate-500 hover:text-white transition-colors text-lg">✕</button>
+            </div>
+            <form id="add-entry-form" class="space-y-4">
+                <!-- Image -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Image</label>
+                    <div class="w-full border-2 border-dashed border-violet-500/25 rounded-xl p-6 flex flex-col items-center bg-violet-500/5 hover:bg-violet-500/10 transition-colors cursor-pointer relative">
+                        <input type="file" id="image-upload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <svg class="w-7 h-7 text-violet-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+                        <span id="file-name" class="text-sm text-slate-400">Click or drop image here</span>
+                    </div>
+                </div>
+                <!-- Prompt -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Prompt</label>
+                    <textarea id="prompt-text" rows="3" placeholder="Prompt text…" class="dark-input"></textarea>
+                </div>
+                <!-- Tags -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Tags <span class="normal-case text-slate-600">(click to select)</span></label>
+                    <div id="tag-selector" class="flex flex-wrap gap-2">
+                        <!-- injected by JS -->
+                    </div>
+                </div>
+                <!-- Advanced -->
+                <details class="group border border-violet-500/15 rounded-xl bg-violet-500/5 overflow-hidden">
+                    <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-slate-300 flex justify-between items-center hover:bg-violet-500/10 transition-colors">
+                        Advanced Generation Details
+                        <span class="text-slate-500 transition-transform duration-200 group-open:rotate-180">▼</span>
+                    </summary>
+                    <div class="p-4 border-t border-white/5 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Model</label>
+                            <input type="text" id="gen-model" value="Nano Banana" class="dark-input text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">VAE</label>
+                            <input type="text" id="gen-vae" placeholder="e.g. vae-ft-mse" class="dark-input text-xs">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-slate-500 mb-1">Negative Prompt</label>
+                            <textarea id="gen-neg-prompt" rows="2" placeholder="ugly, blurry…" class="dark-input text-xs"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Steps</label>
+                            <input type="number" id="gen-steps" placeholder="20" class="dark-input text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">CFG Scale</label>
+                            <input type="number" step="0.1" id="gen-cfg" placeholder="7.0" class="dark-input text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Seed</label>
+                            <input type="number" id="gen-seed" placeholder="-1" class="dark-input text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Sampler</label>
+                            <input type="text" id="gen-sampler" placeholder="DPM++ 2M Karras" class="dark-input text-xs">
+                        </div>
+                    </div>
+                </details>
+                <div class="flex justify-end gap-3 pt-1">
+                    <button type="button" onclick="closeAddModal()" class="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                    <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-violet-600/25">Save to Album</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ══ FULLSCREEN / LIGHTBOX ══ -->
+    <div id="fs-modal" class="fixed inset-0 z-[160] bg-black/96 hidden flex items-center justify-center transition-opacity duration-300 opacity-0" onclick="closeFullscreen(event)">
+        <button class="absolute top-5 right-5 z-[170] p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors" onclick="closeFullscreen(event,true)">
+            <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <div class="relative w-full h-full flex items-center justify-center p-4 md:p-10">
+            <img id="fs-image" src="" alt="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-400 scale-95" onclick="event.stopPropagation()">
+            <!-- Data pill -->
+            <div id="fs-pill" class="absolute bottom-6 right-6 max-w-sm w-full pill-glass rounded-2xl p-5 shadow-2xl transition-all duration-400 translate-y-5 opacity-0" onclick="event.stopPropagation()">
+                <div class="flex items-center gap-2 mb-2.5">
+                    <div class="w-2 h-2 rounded-full bg-violet-400" style="box-shadow:0 0 8px #a78bfa"></div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generation Data</span>
+                </div>
+                <!-- tags row -->
+                <div id="fs-tags" class="flex flex-wrap gap-1.5 mb-2.5"></div>
+                <p id="fs-prompt" class="text-sm text-slate-100 leading-relaxed max-h-28 overflow-y-auto pr-1"></p>
+                <div id="fs-details" class="hidden mt-3 pt-3 border-t border-white/5 grid grid-cols-2 gap-y-1 gap-x-3 text-xs text-slate-400"></div>
+                <div class="flex items-center gap-3 mt-4">
+                    <button id="fs-copy-btn" onclick="copyFsPrompt()" class="text-xs bg-violet-600/80 hover:bg-violet-500 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">Copy Prompt</button>
+                    <button id="fs-delete-btn" class="text-xs text-rose-400 hover:text-rose-300 font-medium hidden">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- /app-root -->
+
+    <script>
+    // ══════════════════════════════════════════════
+    //  STARFIELD  (adapted palette: violet/indigo)
+    // ══════════════════════════════════════════════
+    (() => {
+        const canvas = document.getElementById('starfield-canvas');
+        const ctx    = canvas.getContext('2d');
+        let W, H, stars = [], shooters = [];
+        const COUNT = 280;
+
+        function resize() {
+            W = canvas.width  = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+
+        class Star {
+            constructor(init) {
+                this.reset();
+                if (init) this.y = Math.random() * H;
+            }
+            reset() {
+                this.x    = Math.random() * W;
+                this.y    = Math.random() * H;
+                this.r    = Math.random() * 1.6;
+                this.spd  = 0.01 + Math.random() * 0.03;
+                this.a    = Math.random();
+                this.dir  = Math.random() > .5 ? 1 : -1;
+                // slight violet tint
+                const hue  = 220 + Math.random() * 60;
+                this.color = `hsl(${hue},60%,88%)`;
+            }
+            update() {
+                this.a += this.spd * this.dir;
+                if (this.a >= 1 || this.a <= .05) this.dir *= -1;
+                this.y -= .08;
+                if (this.y < 0) this.y = H;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(230,210,255,${this.a})`;
+                ctx.fill();
+            }
+        }
+
+        class Shooter {
+            constructor() { this.reset(); }
+            reset() {
+                this.x      = Math.random() * W * 1.5;
+                this.y      = 0;
+                this.len    = 70 + Math.random() * 100;
+                this.spd    = 5 + Math.random() * 4;
+                this.active = false;
+                this.timer  = Math.random() * 320;
+            }
+            update() {
+                if (this.active) {
+                    this.x -= this.spd; this.y += this.spd;
+                    if (this.x < -this.len || this.y > H + this.len) { this.active = false; this.reset(); }
+                } else {
+                    this.timer--;
+                    if (this.timer <= 0) { this.active = true; this.x = W*.5 + Math.random()*W*.8; this.y = -50; }
+                }
+            }
+            draw() {
+                if (!this.active) return;
+                const g = ctx.createLinearGradient(this.x, this.y, this.x+this.len, this.y-this.len);
+                g.addColorStop(0, 'rgba(200,180,255,.9)');
+                g.addColorStop(1, 'rgba(200,180,255,0)');
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x+this.len, this.y-this.len);
+                ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.stroke();
+            }
+        }
+
+        function init() {
+            resize();
+            for (let i=0; i<COUNT; i++) stars.push(new Star(true));
+            for (let i=0; i<3; i++) shooters.push(new Shooter());
+        }
+        function loop() {
+            ctx.clearRect(0,0,W,H);
+            stars.forEach(s => { s.update(); s.draw(); });
+            shooters.forEach(s => { s.update(); s.draw(); });
+            requestAnimationFrame(loop);
+        }
+        window.addEventListener('resize', resize);
+        init(); loop();
+    })();
+
+    // ══════════════════════════════════════════════
+    //  APP STATE
+    // ══════════════════════════════════════════════
+    const DB_NAME    = 'AIAlbumDB';
+    const DB_VERSION = 2;
+    let db, currentProfileId = null;
+    let activeTagFilter = null;
+    let editingId = null; // for future edit support
+
+    // ── Available tags ──
+    const ALL_TAGS = ['Tools','Marketing','Modeling','Architecture','Design','Upscaling','Outpaint','Portrait','Full Body','Concept Art','Illustration','Misc'];
+
+    // ── Built-in free prompts (stored once per profile on first load) ──
+    const BUILTIN_PROMPTS = [
+        {
+            id: 'builtin_regen',
+            title: 'Re-Gen / Upscale',
+            tags: ['Tools','Upscaling'],
+            prompt: 'Re-generate the provided image at a higher resolution and pixel density while maintaining 100% fidelity to the original image. Do not modify, reinterpret, add, remove, crop, or stylize any element.  Strictly preserve:  Original composition, framing, and aspect ratio  Exact camera angle and perspective  Identical colors, tones, contrast, and color grading  Original lighting direction, intensity, and softness  Exact outfit, pose, body proportions, and facial features  Background elements, textures, and depth  Overall aesthetic, mood, and visual intent  The only allowed operation is:  Increase resolution, sharpness, and micro-detail  Improve texture clarity, edge definition, and fine details  Reduce compression artifacts or noise without smoothing or altering surfaces  The final result must look like the same image, captured with a higher-resolution sensor — no creative interpretation, no corrections, no enhancements beyond pixel clarity.',
+            model: 'Universal', builtin: true
+        },
+        {
+            id: 'builtin_outpaint',
+            title: 'Outpaint',
+            tags: ['Tools','Outpaint'],
+            prompt: 'Extend the edges of the image to create a larger scene while maintaining the original style, perspective, colors, lighting, and textures. Add natural and seamless background or environmental elements that perfectly match the existing photo. The expansion must look invisible and coherent with the original framing. Photorealistic, high-resolution result with natural lighting, realistic textures, and authentic visual continuity.',
+            model: 'Universal', builtin: true
+        },
+        {
+            id: 'builtin_portrait',
+            title: 'Face Portrait (BLACK BG)',
+            tags: ['Modeling','Portrait'],
+            prompt: 'Centered face mug shoot with the exact face features (hairstyle and eyes color) and same exact expression (looking toward the camera). Captured from a frontal angle. With a sharp and clean details. Pitch-black background. PRO MODE PHOTOGRAPHY: Nikon Z7II + Sigma 50MM SS: 1/1250 | F:1.2 | ISO:100.',
+            model: 'Nano Banana', builtin: true
+        },
+        {
+            id: 'builtin_fullbody',
+            title: 'Full Body (BLACK BG)',
+            tags: ['Modeling','Full Body'],
+            prompt: 'Full-body portrait standing confidently barefoot. Standing naturally, facing the spectator. Her gaze is directed at the spectator, maintaining the exact same expression as in the reference.  Arms resting naturally at her sides.   - Details of the Character and Characteristics: Preserve all physical features exactly as in the reference (VERY IMPORTANT). Must be accurate and realistic: features, accessories, and natural proportions. Realistic soft-looking skin, with real texture and lifelike detail.   - Outfit: Outfit must be preserved exactly as in the reference. Barefoot with pretty feminine toes and adorned with natural nails polish. Ensure fabric details and accessories are reproduced faithfully.   - Scene and Composition: Seamless pitch-black background (no shadows, reflections, or gradients). The subject must be perfectly isolated, centered, and balanced. Clean and distraction-free presentation the woman is the only visual element. Lighting must be even, soft, and realistic, highlighting skin tones, fabric details, and natural textures without casting shadows on the background.',
+            model: 'Nano Banana', builtin: true
+        }
+    ];
+
+    // ── Store packs (WebP images) ──
+    const STORE_PACKS = [
+        { id:'pk1', title:'Pack #1',  subtitle:'Mock Ups',                  price:'$4.99',  img:'assets/packs/mockups.webp',       desc:'50+ mock-up prompt templates to present your concepts instantly.' },
+        { id:'pk2', title:'Pack #2',  subtitle:'T-shirt Design',            price:'$4.99',  img:'assets/packs/tshirt.webp',        desc:'Prompt styles to generate stunning ready-to-print t-shirt graphics.' },
+        { id:'pk3', title:'Pack #3',  subtitle:'Architecture & Environments',price:'$4.99',  img:'assets/packs/architecture.webp',  desc:'Breathtaking architectural + environmental prompts for concept art.' },
+        { id:'pk4', title:'Pack #4',  subtitle:'IG Model',                  price:'$9.99',  img:'assets/packs/igmodel.webp',       desc:'Hyper-realistic Instagram model portraits with varied poses.' },
+        { id:'pk5', title:'Pack #5',  subtitle:'Digital Influencer',        price:'$9.99',  img:'assets/packs/influencer.webp',    desc:'Complete kit for a consistent digital influencer across scenes.' },
+        { id:'pk6', title:'Pack #6',  subtitle:'All in One',                price:'$24.99', img:'assets/packs/allinone.webp',      desc:'Every pack bundled — best value for the full workflow.' }
+    ];
+
+    const FALLBACK_SVG = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='600'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%231a1235'/><stop offset='1' stop-color='%230b0820'/></linearGradient></defs><rect width='400' height='600' fill='url(%23g)'/></svg>`;
+
+    // ══════════════════════════════════════════════
+    //  IndexedDB
+    // ══════════════════════════════════════════════
+    function initDB() {
+        return new Promise((res, rej) => {
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = e => {
+                const d = e.target.result;
+                if (!d.objectStoreNames.contains('profiles'))
+                    d.createObjectStore('profiles', { keyPath:'id' });
+                if (!d.objectStoreNames.contains('images')) {
+                    const s = d.createObjectStore('images', { keyPath:'id' });
+                    s.createIndex('profileId','profileId',{unique:false});
+                }
+            };
+            req.onsuccess = e => { db = e.target.result; res(); };
+            req.onerror   = e => rej(e);
+        });
+    }
+
+    const dbPut    = (store,item)  => new Promise((r,j)=>{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).put(item).onsuccess=()=>r(); tx.onerror=()=>j(tx.error); });
+    const dbAdd    = (store,item)  => new Promise((r,j)=>{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).add(item).onsuccess=()=>r(); tx.onerror=()=>j(tx.error); });
+    const dbGet    = (store,key)   => new Promise((r,j)=>{ const tx=db.transaction(store,'readonly');  tx.objectStore(store).get(key).onsuccess=e=>r(e.target.result); tx.onerror=()=>j(tx.error); });
+    const dbGetAll = (store)       => new Promise((r,j)=>{ const tx=db.transaction(store,'readonly');  tx.objectStore(store).getAll().onsuccess=e=>r(e.target.result); tx.onerror=()=>j(tx.error); });
+    const dbDel    = (store,key)   => new Promise((r,j)=>{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).delete(key).onsuccess=()=>r(); tx.onerror=()=>j(tx.error); });
+    const dbDelByIndex = (store,index,val) => new Promise((r,j)=>{
+        const tx=db.transaction(store,'readwrite');
+        tx.objectStore(store).index(index).openCursor(IDBKeyRange.only(val)).onsuccess=ev=>{
+            const c=ev.target.result; if(c){c.delete();c.continue();}
+        };
+        tx.oncomplete=r; tx.onerror=()=>j(tx.error);
+    });
+    const dbGetByIndex = (store,index,val) => new Promise((r,j)=>{
+        const tx=db.transaction(store,'readonly');
+        tx.objectStore(store).index(index).getAll(IDBKeyRange.only(val)).onsuccess=e=>r(e.target.result);
+        tx.onerror=()=>j(tx.error);
+    });
+
+    // ══════════════════════════════════════════════
+    //  INIT
+    // ══════════════════════════════════════════════
+    window.onload = async () => {
+        await initDB();
+        checkCurrentProfile();
+    };
+
+    function checkCurrentProfile() {
+        const saved = localStorage.getItem('pa_current_profile');
+        if (saved) {
+            dbGet('profiles', saved).then(p => p ? loadProfile(p) : showProfileSelector());
+        } else { showProfileSelector(); }
+    }
+
+    // ══════════════════════════════════════════════
+    //  PROFILES
+    // ══════════════════════════════════════════════
+    async function showProfileSelector() {
+        document.getElementById('profile-view').classList.remove('hidden');
+        document.getElementById('app-view').classList.add('hidden');
+        const profiles = await dbGetAll('profiles');
+        const list = document.getElementById('profiles-list');
+        list.innerHTML = '';
+        if (!profiles.length) {
+            list.innerHTML = '<p class="text-center text-slate-600 text-sm py-4">No profiles yet — create one below.</p>';
+        } else {
+            profiles.forEach(p => {
+                const d = document.createElement('div');
+                d.className = 'flex justify-between items-center p-4 rounded-2xl bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/15 transition-all cursor-pointer group';
+                d.innerHTML = `
+                    <div class="flex-1 font-semibold text-slate-200" onclick="loadProfileById('${p.id}')">${p.name}</div>
+                    <button onclick="deleteProfile('${p.id}',event)" class="text-transparent group-hover:text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all text-sm">✕</button>
+                `;
+                list.appendChild(d);
+            });
+        }
+    }
+
+    document.getElementById('add-profile-form').onsubmit = async e => {
+        e.preventDefault();
+        const name = document.getElementById('new-profile-name').value.trim();
+        if (!name) return;
+        const profile = { id:'p_'+Date.now(), name, createdAt:Date.now() };
+        await dbAdd('profiles', profile);
+        document.getElementById('new-profile-name').value = '';
+        loadProfile(profile);
+    };
+
+    function loadProfileById(id) {
+        dbGet('profiles', id).then(p => p && loadProfile(p));
+    }
+
+    async function loadProfile(profile) {
+        currentProfileId = profile.id;
+        localStorage.setItem('pa_current_profile', profile.id);
+        document.getElementById('current-profile-display').textContent = profile.name;
+        document.getElementById('profile-view').classList.add('hidden');
+        document.getElementById('app-view').classList.remove('hidden');
+        await ensureBuiltins();
+        switchTab('gallery');
+        renderTagFilterBar();
+        refreshGallery();
+        renderStore();
+        checkBackupReminder();
+        showToast(`Welcome back, ${profile.name}!`);
+    }
+
+    async function deleteProfile(id, e) {
+        e.stopPropagation();
+        if (!confirm('Delete this profile and all its data?')) return;
+        await dbDel('profiles', id);
+        await dbDelByIndex('images','profileId',id);
+        if (currentProfileId === id) localStorage.removeItem('pa_current_profile');
+        showProfileSelector();
+    }
+
+    function logout() {
+        currentProfileId = null;
+        localStorage.removeItem('pa_current_profile');
+        showProfileSelector();
+    }
+
+    // ══════════════════════════════════════════════
+    //  BUILT-IN PROMPTS (seeded per profile)
+    // ══════════════════════════════════════════════
+    async function ensureBuiltins() {
+        const existing = await dbGetByIndex('images','profileId', currentProfileId);
+        const existingIds = new Set(existing.map(e => e.id.replace(`${currentProfileId}_`,'')));
+        for (const bp of BUILTIN_PROMPTS) {
+            const localId = `${currentProfileId}_${bp.id}`;
+            if (!existing.find(e => e.id === localId)) {
+                await dbPut('images', {
+                    id: localId,
+                    profileId: currentProfileId,
+                    dataUrl: null,
+                    prompt: bp.prompt,
+                    tags: bp.tags,
+                    model: bp.model,
+                    title: bp.title,
+                    builtin: true,
+                    date: Date.now() - 1000
+                });
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  TABS
+    // ══════════════════════════════════════════════
+    function switchTab(tab) {
+        document.getElementById('view-gallery').classList.add('hidden');
+        document.getElementById('view-store').classList.add('hidden');
+        ['gallery','store'].forEach(t => {
+            document.getElementById(`tab-${t}`).className = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ' +
+                (t === tab ? 'text-white bg-violet-600/60' : 'text-slate-400 hover:text-white hover:bg-white/5');
+        });
+        document.getElementById(`view-${tab}`).classList.remove('hidden');
+        document.getElementById('tag-filter-bar').style.display = tab === 'gallery' ? '' : 'none';
+    }
+
+    // ══════════════════════════════════════════════
+    //  TAG SYSTEM
+    // ══════════════════════════════════════════════
+    function renderTagFilterBar() {
+        const bar = document.getElementById('tag-filter-bar');
+        bar.innerHTML = '';
+        ALL_TAGS.forEach(t => {
+            const chip = document.createElement('button');
+            chip.className = 'tag-chip' + (activeTagFilter === t ? ' selected' : '');
+            chip.textContent = t;
+            chip.onclick = () => { activeTagFilter = (activeTagFilter === t) ? null : t; refreshGallery(); renderTagFilterBar(); toggleFilterNotice(); };
+            bar.appendChild(chip);
+        });
+    }
+
+    function toggleFilterNotice() {
+        const notice = document.getElementById('active-filter-notice');
+        if (activeTagFilter) {
+            notice.classList.remove('hidden');
+            notice.classList.add('flex');
+            document.getElementById('active-filter-tag').textContent = activeTagFilter;
+        } else {
+            notice.classList.add('hidden');
+            notice.classList.remove('flex');
+        }
+    }
+
+    function clearTagFilter() { activeTagFilter = null; renderTagFilterBar(); toggleFilterNotice(); refreshGallery(); }
+
+    function buildTagSelector(container, selectedTags=[]) {
+        container.innerHTML = '';
+        ALL_TAGS.forEach(t => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'tag-chip' + (selectedTags.includes(t) ? ' selected' : '');
+            chip.textContent = t;
+            chip.dataset.tag = t;
+            chip.onclick = () => chip.classList.toggle('selected');
+            container.appendChild(chip);
+        });
+    }
+
+    function getSelectedTags(container) {
+        return [...container.querySelectorAll('.tag-chip.selected')].map(c => c.dataset.tag);
+    }
+
+    // ══════════════════════════════════════════════
+    //  GALLERY
+    // ══════════════════════════════════════════════
+    async function refreshGallery() {
+        const grid  = document.getElementById('gallery-grid');
+        const empty = document.getElementById('empty-state');
+        grid.innerHTML = '';
+        let images = await dbGetByIndex('images','profileId', currentProfileId);
+        images.sort((a,b) => b.date - a.date);
+
+        if (activeTagFilter) {
+            images = images.filter(img => img.tags && img.tags.includes(activeTagFilter));
+        }
+
+        document.getElementById('item-count').textContent = images.length;
+
+        if (!images.length) {
+            empty.classList.remove('hidden'); empty.classList.add('flex');
+        } else {
+            empty.classList.add('hidden'); empty.classList.remove('flex');
+            images.forEach(img => grid.appendChild(createGalleryCard(img)));
+        }
+    }
+
+    function createGalleryCard(img) {
+        const div = document.createElement('div');
+        div.className = 'fantasy-card shimmer-host rounded-2xl overflow-hidden relative cursor-pointer transform transition-all duration-300 hover:scale-[1.04] hover:shadow-[0_0_35px_rgba(167,139,250,.18)] group';
+        div.onclick = () => openFullscreen(img);
+
+        const imgEl = img.dataUrl
+            ? `<img src="${img.dataUrl}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy">`
+            : `<div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-900/40 to-indigo-900/20">
+                  <svg class="w-10 h-10 text-violet-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+               </div>`;
+
+        div.innerHTML = `
+            ${imgEl}
+            <div class="absolute inset-0 bg-gradient-to-t from-[#07071a] via-[#07071a]/20 to-transparent"></div>
+            ${img.builtin ? '<div class="builtin-badge">Built-in</div>' : ''}
+            <div class="absolute bottom-0 left-0 right-0 p-3 transform translate-y-1.5 group-hover:translate-y-0 transition-transform duration-300">
+                ${img.tags?.length ? `<div class="flex flex-wrap gap-1 mb-1.5">${img.tags.slice(0,2).map(t=>`<span class="tag-chip" style="font-size:9px;padding:1px 6px">${t}</span>`).join('')}</div>` : ''}
+                <p class="text-[11px] text-slate-300 line-clamp-2 leading-snug group-hover:text-white transition-colors">${img.title || img.prompt}</p>
+            </div>
+            <div class="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-violet-400/20 transition-colors pointer-events-none"></div>
+        `;
+        return div;
+    }
+
+    // ══════════════════════════════════════════════
+    //  STORE
+    // ══════════════════════════════════════════════
+    function renderStore() {
+        const grid = document.getElementById('store-grid');
+        grid.innerHTML = '';
+        STORE_PACKS.forEach(pack => {
+            const card = document.createElement('div');
+            card.className = 'fantasy-card shimmer-host shimmer-effect rounded-2xl overflow-hidden relative cursor-pointer transform transition-all duration-300 hover:scale-[1.04] hover:shadow-[0_0_35px_rgba(167,139,250,.2)] group';
+            card.onclick = () => openStoreModal(pack);
+            card.innerHTML = `
+                <img src="${pack.img}" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" onerror="this.src='${FALLBACK_SVG}'">
+                <div class="absolute inset-0 bg-gradient-to-t from-[#07071a] via-[#07071a]/30 to-transparent"></div>
+                <div class="absolute top-3 left-3 z-10">
+                    <span class="text-[9px] font-bold tracking-widest uppercase text-violet-300 bg-black/50 backdrop-blur-sm border border-violet-500/25 px-2 py-0.5 rounded-md">${pack.title}</span>
+                </div>
+                <div class="absolute top-3 right-3 z-10">
+                    <span class="text-[10px] font-black text-white bg-violet-600/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-lg">${pack.price}</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 p-4 transform translate-y-1.5 group-hover:translate-y-0 transition-transform duration-300">
+                    <p class="text-sm font-bold text-white mb-0.5">${pack.subtitle}</p>
+                    <p class="text-[11px] text-slate-300 line-clamp-2 leading-snug">${pack.desc}</p>
+                </div>
+                <div class="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-violet-400/25 transition-colors pointer-events-none"></div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function openStoreModal(pack) {
+        openFullscreen({
+            dataUrl: pack.img,
+            prompt: pack.desc,
+            title: `${pack.title} — ${pack.subtitle}`,
+            tags: [],
+            model: null,
+            isStore: true,
+            price: pack.price
+        });
+    }
+
+    // ══════════════════════════════════════════════
+    //  ADD MODAL
+    // ══════════════════════════════════════════════
+    function openAddModal() {
+        document.getElementById('modal-title').textContent = 'Add New Memory';
+        document.getElementById('add-entry-form').reset();
+        document.getElementById('file-name').textContent = 'Click or drop image here';
+        document.getElementById('gen-model').value = 'Nano Banana';
+        buildTagSelector(document.getElementById('tag-selector'), []);
+        document.getElementById('add-image-modal').classList.remove('hidden');
+        editingId = null;
+    }
+
+    function closeAddModal() {
+        document.getElementById('add-image-modal').classList.add('hidden');
+        document.getElementById('add-entry-form').reset();
+        document.getElementById('file-name').textContent = 'Click or drop image here';
+        document.getElementById('gen-model').value = 'Nano Banana';
+        editingId = null;
+    }
+
+    document.getElementById('image-upload').onchange = e => {
+        const f = e.target.files[0];
+        if (f) document.getElementById('file-name').textContent = f.name;
+    };
+
+    document.getElementById('add-entry-form').onsubmit = async e => {
+        e.preventDefault();
+        const file      = document.getElementById('image-upload').files[0];
+        const prompt    = document.getElementById('prompt-text').value.trim();
+        const tags      = getSelectedTags(document.getElementById('tag-selector'));
+        const model     = document.getElementById('gen-model').value.trim();
+        const vae       = document.getElementById('gen-vae').value.trim();
+        const negPrompt = document.getElementById('gen-neg-prompt').value.trim();
+        const steps     = document.getElementById('gen-steps').value.trim();
+        const cfg       = document.getElementById('gen-cfg').value.trim();
+        const seed      = document.getElementById('gen-seed').value.trim();
+        const sampler   = document.getElementById('gen-sampler').value.trim();
+
+        if (!prompt) { showToast('Please add a prompt!', '⚠️'); return; }
+
+        const entry = {
+            id: 'img_'+Date.now(), profileId: currentProfileId,
+            dataUrl: null, prompt, tags, model, vae, negPrompt, steps, cfg, seed, sampler,
+            date: Date.now()
+        };
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async ev => {
+                entry.dataUrl = ev.target.result;
+                await dbPut('images', entry);
+                closeAddModal(); refreshGallery(); showToast('Saved to Album!');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            await dbPut('images', entry);
+            closeAddModal(); refreshGallery(); showToast('Prompt saved (no image)!');
+        }
+    };
+
+    // ══════════════════════════════════════════════
+    //  FULLSCREEN / LIGHTBOX
+    // ══════════════════════════════════════════════
+    let currentFsData = null;
+
+    function openFullscreen(imgData) {
+        currentFsData = imgData;
+        const modal   = document.getElementById('fs-modal');
+        const fsImg   = document.getElementById('fs-image');
+        const fsPill  = document.getElementById('fs-pill');
+        const fsPrompt= document.getElementById('fs-prompt');
+        const fsTags  = document.getElementById('fs-tags');
+        const fsDet   = document.getElementById('fs-details');
+        const delBtn  = document.getElementById('fs-delete-btn');
+
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            modal.classList.remove('opacity-0');
+            fsImg.classList.remove('scale-95');
+            fsPill.classList.remove('translate-y-5','opacity-0');
+        });
+
+        // Image
+        if (imgData.dataUrl) {
+            fsImg.src = imgData.dataUrl;
+            fsImg.onerror = () => fsImg.src = FALLBACK_SVG;
+        } else {
+            fsImg.src = FALLBACK_SVG;
+        }
+
+        // Tags
+        fsTags.innerHTML = (imgData.tags||[]).map(t=>`<span class="tag-chip" style="font-size:9px;padding:1px 7px">${t}</span>`).join('');
+
+        // Prompt
+        if (imgData.isStore) {
+            fsPrompt.innerHTML = `<span class="text-violet-300 font-bold text-base block mb-1">${imgData.title}</span><span class="text-sm text-slate-300">${imgData.price} — ${imgData.prompt}</span>`;
+            delBtn.classList.add('hidden');
+        } else {
+            fsPrompt.innerHTML = imgData.title
+                ? `<span class="text-violet-300 font-bold block mb-1">${imgData.title}</span><span class="text-sm text-slate-300">${imgData.prompt}</span>`
+                : `<span class="text-sm text-slate-100">${imgData.prompt}</span>`;
+            delBtn.classList.remove('hidden');
+            delBtn.onclick = () => deleteImage(imgData.id);
+        }
+
+        // Details
+        fsDet.innerHTML = '';
+        const details = [
+            ['Model',  imgData.model],
+            ['VAE',    imgData.vae],
+            ['Steps',  imgData.steps],
+            ['CFG',    imgData.cfg],
+            ['Seed',   imgData.seed],
+            ['Sampler',imgData.sampler],
+        ].filter(([,v]) => v);
+        if (details.length) {
+            fsDet.classList.remove('hidden');
+            details.forEach(([label,val]) => {
+                fsDet.innerHTML += `<div><span class="text-slate-500">${label}:</span> <span class="text-slate-200">${val}</span></div>`;
+            });
+            if (imgData.negPrompt) {
+                fsDet.innerHTML += `<div class="col-span-2"><span class="text-slate-500">Negative:</span> <span class="text-slate-200">${imgData.negPrompt}</span></div>`;
+            }
+        } else {
+            fsDet.classList.add('hidden');
+        }
+    }
+
+    function copyFsPrompt() {
+        if (!currentFsData) return;
+        navigator.clipboard.writeText(currentFsData.prompt).then(() => showToast('Prompt copied!', '📋'));
+    }
+
+    function closeFullscreen(e, force=false) {
+        if (!force && e && e.target !== document.getElementById('fs-modal')) return;
+        const modal  = document.getElementById('fs-modal');
+        const fsPill = document.getElementById('fs-pill');
+        const fsImg  = document.getElementById('fs-image');
+        modal.classList.add('opacity-0');
+        fsImg.classList.add('scale-95');
+        fsPill.classList.add('translate-y-5','opacity-0');
+        setTimeout(() => { modal.classList.add('hidden'); fsImg.src=''; currentFsData=null; }, 300);
+    }
+
+    async function deleteImage(id) {
+        if (!confirm('Remove this from your album?')) return;
+        await dbDel('images', id);
+        closeFullscreen(null, true);
+        refreshGallery();
+        showToast('Removed.', '🗑️');
+    }
+
+    // ══════════════════════════════════════════════
+    //  BACKUP
+    // ══════════════════════════════════════════════
+    async function exportData() {
+        const images = await dbGetByIndex('images','profileId', currentProfileId);
+        const blob = new Blob([JSON.stringify(images, null, 2)], {type:'application/json'});
+        const url  = URL.createObjectURL(blob);
+        const a    = Object.assign(document.createElement('a'), {href:url, download:`AIAlbum_${new Date().toISOString().split('T')[0]}.json`});
+        a.click(); URL.revokeObjectURL(url);
+        localStorage.setItem(`pa_backup_${currentProfileId}`, Date.now());
+        showToast('Game Saved! (Exported)', '💾');
+    }
+
+    function importData(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async ev => {
+            try {
+                const data = JSON.parse(ev.target.result);
+                if (!Array.isArray(data)) throw new Error();
+                await dbDelByIndex('images','profileId',currentProfileId);
+                for (const img of data) { img.profileId = currentProfileId; await dbPut('images', img); }
+                refreshGallery();
+                localStorage.setItem(`pa_backup_${currentProfileId}`, Date.now());
+                showToast('Game Loaded! (Imported)', '📂');
+            } catch { alert('Invalid backup file.'); }
+            e.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    function checkBackupReminder() {
+        const last = localStorage.getItem(`pa_backup_${currentProfileId}`);
+        if (!last || (Date.now() - parseInt(last)) > 3*24*60*60*1000) {
+            setTimeout(() => showToast('Backup reminder: Save Game (Export) your album!', '🛡️'), 2500);
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  TOAST
+    // ══════════════════════════════════════════════
+    let toastTimer;
+    function showToast(msg, icon='✨') {
+        clearTimeout(toastTimer);
+        const toast = document.getElementById('toast');
+        document.getElementById('toast-msg').textContent  = msg;
+        document.getElementById('toast-icon').textContent = icon;
+        toast.classList.remove('opacity-0','-translate-y-4');
+        toastTimer = setTimeout(() => toast.classList.add('opacity-0','-translate-y-4'), 3500);
+    }
+
+    // ESC key
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            closeFullscreen(null, true);
+            closeAddModal();
+        }
+    });
+    </script>
+</body>
+</html>

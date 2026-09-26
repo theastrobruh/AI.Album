@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Overlay - Background Layer</title>
+
+    <style>
+        :root {
+            /* Paleta Sunset Nostálgico */
+            --bg-top: #050510;
+            --bg-middle: #160c28;
+            --bg-bottom: #3b1c3c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-middle) 50%, var(--bg-bottom) 100%);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* --- FONDO DE ESTRELLAS --- */
+        #starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 20%, rgba(0, 0, 0, 0.5) 100%);
+            z-index: 2;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="starfield"></canvas>
+    <div class="vignette"></div>
+
+    <script>
+        /* --- LÓGICA DE FONDO ESTRELLADO --- */
+        const canvas = document.getElementById('starfield');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let stars = [];
+        let shootingStars = [];
+
+        const STAR_COUNT = 300;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        class Star {
+            constructor() {
+                this.reset();
+                this.y = Math.random() * height;
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 2;
+                this.blinkSpeed = 0.01 + Math.random() * 0.03;
+                this.opacity = Math.random();
+                this.direction = Math.random() > 0.5 ? 1 : -1;
+            }
+
+            update() {
+                this.opacity += this.blinkSpeed * this.direction;
+                if (this.opacity >= 1 || this.opacity <= 0.1) {
+                    this.direction *= -1;
+                }
+                this.y -= 0.1;
+                if (this.y < 0) this.y = height;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 230, 240, ${this.opacity})`;
+                ctx.fill();
+            }
+        }
+
+        class ShootingStar {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * width * 1.5;
+                this.y = 0;
+                this.length = 80 + Math.random() * 100;
+                this.speed = 5 + Math.random() * 4;
+                this.active = false;
+                this.timer = Math.random() * 300;
+            }
+
+            update() {
+                if (this.active) {
+                    this.x -= this.speed;
+                    this.y += this.speed;
+                    if (this.x < -this.length || this.y > height + this.length) {
+                        this.active = false;
+                        this.reset();
+                    }
+                } else {
+                    this.timer--;
+                    if (this.timer <= 0) {
+                        this.active = true;
+                        this.x = width * 0.5 + Math.random() * width * 0.8;
+                        this.y = -50;
+                    }
+                }
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                const gradient = ctx.createLinearGradient(this.x, this.y, this.x + this.length, this.y - this.length);
+                gradient.addColorStop(0, "rgba(255, 210, 230, 0.9)");
+                gradient.addColorStop(1, "rgba(255, 210, 230, 0)");
+
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.length, this.y - this.length);
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
+        }
+
+        function initStars() {
+            resize();
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push(new Star());
+            }
+            shootingStars.push(new ShootingStar());
+            shootingStars.push(new ShootingStar());
+            shootingStars.push(new ShootingStar());
+        }
+
+        function animateStars() {
+            ctx.clearRect(0, 0, width, height);
+
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+
+            shootingStars.forEach(sStar => {
+                sStar.update();
+                sStar.draw();
+            });
+
+            requestAnimationFrame(animateStars);
+        }
+
+        window.addEventListener('resize', resize);
+        initStars();
+        animateStars();
+    </script>
+</body>
+
+</html>

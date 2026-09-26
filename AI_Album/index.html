@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI.Album — by theAstroBruh</title>
+
+    <!-- Tailwind CDN (swap for compiled build in production) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        fantasy: { dark: '#07071a', card: '#120e2a', accent: '#a78bfa' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- App styles -->
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="text-slate-200 font-sans min-h-screen antialiased overflow-x-hidden"
+      style="background: linear-gradient(180deg, #050510 0%, #160c28 50%, #1e0f2e 100%);">
+
+    <!-- ══ STARFIELD BACKGROUND ══ -->
+    <canvas id="starfield-canvas"></canvas>
+    <div class="vignette"></div>
+
+    <!-- ══ APP ROOT ══ -->
+    <div id="app-root">
+
+        <!-- Toast -->
+        <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[200] transition-all duration-300 opacity-0 -translate-y-4 pointer-events-none">
+            <div class="pill-glass px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 text-sm font-medium">
+                <span id="toast-icon">✨</span>
+                <span id="toast-msg"></span>
+            </div>
+        </div>
+
+        <!-- ══ PROFILE SELECTOR ══ -->
+        <div id="profile-view" class="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6">
+            <div class="w-full max-w-md pill-glass p-8 rounded-3xl shadow-2xl">
+                <div class="text-center mb-8">
+                    <h1 class="text-4xl font-black tracking-tight text-white glow-text mb-1">AI.Album</h1>
+                    <p class="text-[11px] text-slate-500 tracking-widest">by theAstroBruh</p>
+                    <p class="text-slate-400 text-sm mt-4">Select a profile to continue</p>
+                </div>
+                <div id="profiles-list" class="space-y-3 mb-6 max-h-56 overflow-y-auto pr-1"></div>
+                <div class="pt-5 border-t border-white/5">
+                    <form id="add-profile-form" class="flex gap-2">
+                        <input type="text" id="new-profile-name" placeholder="New profile name…" required class="dark-input flex-1">
+                        <button type="submit" class="bg-violet-500 hover:bg-violet-400 text-white font-bold px-5 rounded-xl transition-colors shadow-lg shadow-violet-500/25">+</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ MAIN APP ══ -->
+        <div id="app-view" class="hidden flex flex-col min-h-screen">
+
+            <!-- Nav -->
+            <nav class="sticky top-0 z-50 pill-glass border-b border-white/5 px-6 py-3.5">
+                <div class="max-w-7xl mx-auto flex justify-between items-center">
+                    <div class="flex items-center gap-5">
+                        <div>
+                            <span class="text-lg font-black text-white tracking-tight glow-text">AI.Album</span>
+                            <span class="text-[9px] text-slate-600 ml-2 tracking-widest">by theAstroBruh</span>
+                        </div>
+                        <div class="h-5 w-px bg-white/10 hidden sm:block"></div>
+                        <div class="flex gap-1">
+                            <button onclick="App.switchTab('gallery')" id="tab-gallery" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all text-white bg-violet-600/60">My Album</button>
+                            <button onclick="App.switchTab('store')" id="tab-store" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-white/5">Mini-Store</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <!-- Tag filter bar -->
+                        <div id="tag-filter-bar" class="hidden sm:flex gap-1.5 flex-wrap"></div>
+                        <div class="h-5 w-px bg-white/10"></div>
+                        <div class="flex items-center gap-2 text-sm text-slate-400">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                            <span id="current-profile-display" class="font-medium text-slate-300"></span>
+                        </div>
+                        <!-- Backup menu -->
+                        <div class="relative group">
+                            <button class="p-2 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors" title="Data backup">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            </button>
+                            <div class="absolute right-0 mt-2 w-52 pill-glass rounded-xl border border-white/5 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-1.5 text-sm">
+                                <button onclick="Backup.exportData()" class="w-full text-left px-4 py-2.5 text-slate-300 hover:bg-white/5 hover:text-white transition-colors">💾 Save Game (Export)</button>
+                                <label class="w-full text-left px-4 py-2.5 text-slate-300 hover:bg-white/5 hover:text-white transition-colors cursor-pointer block">
+                                    📂 Load Game (Import)
+                                    <input type="file" id="import-input" class="hidden" accept=".json" onchange="Backup.importData(event)">
+                                </label>
+                                <div class="h-px bg-white/5 my-1 mx-3"></div>
+                                <button onclick="Profiles.logout()" class="w-full text-left px-4 py-2.5 text-rose-400 hover:bg-white/5 hover:text-rose-300 transition-colors">↩ Switch Profile</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Content -->
+            <main class="flex-1 max-w-7xl mx-auto w-full p-5 lg:p-8">
+
+                <!-- ── GALLERY TAB ── -->
+                <div id="view-gallery" class="space-y-6">
+                    <div class="flex justify-between items-end gap-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white glow-text">Your Collection</h2>
+                            <p class="text-slate-500 text-sm mt-1">Stored locally in your browser · <span id="item-count">0</span> items</p>
+                        </div>
+                        <button onclick="Modal.open()" class="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-violet-600/25 flex items-center gap-2 whitespace-nowrap">
+                            <span>+ Add</span>
+                        </button>
+                    </div>
+
+                    <div id="active-filter-notice" class="hidden items-center gap-3 text-xs text-violet-300 bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-2">
+                        <span>🔖 Filtering by tag:</span>
+                        <span id="active-filter-tag" class="font-bold"></span>
+                        <button onclick="Tags.clearFilter()" class="ml-auto text-slate-400 hover:text-white">✕ Clear</button>
+                    </div>
+
+                    <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"></div>
+
+                    <div id="empty-state" class="hidden flex-col items-center justify-center py-24 text-center">
+                        <div class="w-20 h-20 mb-5 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                            <svg class="w-9 h-9 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <p class="text-base font-semibold text-slate-300">Your album is empty</p>
+                        <p class="text-sm text-slate-500 mt-1">Add your first AI generation to begin.</p>
+                    </div>
+                </div>
+
+                <!-- ── STORE TAB ── -->
+                <div id="view-store" class="hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white glow-text">Mini-Store</h2>
+                        <p class="text-slate-500 text-sm mt-1">Premium prompt packs · unlock your workflow</p>
+                    </div>
+                    <div id="store-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+
+            </main>
+        </div><!-- /app-view -->
+
+        <!-- ══ ADD / EDIT MODAL ══ -->
+        <div id="add-image-modal" class="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm hidden flex items-start justify-center p-6 overflow-y-auto">
+            <div class="w-full max-w-xl pill-glass rounded-3xl shadow-2xl p-6 border border-violet-500/20 my-8">
+                <div class="flex justify-between items-center mb-5">
+                    <h3 id="modal-title" class="text-xl font-bold text-white">Add New Memory</h3>
+                    <button type="button" onclick="Modal.close()" class="text-slate-500 hover:text-white transition-colors text-lg">✕</button>
+                </div>
+                <form id="add-entry-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Image</label>
+                        <div class="w-full border-2 border-dashed border-violet-500/25 rounded-xl p-6 flex flex-col items-center bg-violet-500/5 hover:bg-violet-500/10 transition-colors cursor-pointer relative">
+                            <input type="file" id="image-upload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <svg class="w-7 h-7 text-violet-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"/></svg>
+                            <span id="file-name" class="text-sm text-slate-400">Click or drop image here</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Prompt</label>
+                        <textarea id="prompt-text" rows="3" placeholder="Prompt text…" class="dark-input"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Tags <span class="normal-case text-slate-600">(click to select)</span></label>
+                        <div id="tag-selector" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <details class="group border border-violet-500/15 rounded-xl bg-violet-500/5 overflow-hidden">
+                        <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-slate-300 flex justify-between items-center hover:bg-violet-500/10 transition-colors">
+                            Advanced Generation Details
+                            <span class="text-slate-500 transition-transform duration-200 group-open:rotate-180">▼</span>
+                        </summary>
+                        <div class="p-4 border-t border-white/5 grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Model</label>
+                                <input type="text" id="gen-model" value="Nano Banana" class="dark-input text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">VAE</label>
+                                <input type="text" id="gen-vae" placeholder="e.g. vae-ft-mse" class="dark-input text-xs">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs text-slate-500 mb-1">Negative Prompt</label>
+                                <textarea id="gen-neg-prompt" rows="2" placeholder="ugly, blurry…" class="dark-input text-xs"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Steps</label>
+                                <input type="number" id="gen-steps" placeholder="20" class="dark-input text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">CFG Scale</label>
+                                <input type="number" step="0.1" id="gen-cfg" placeholder="7.0" class="dark-input text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Seed</label>
+                                <input type="number" id="gen-seed" placeholder="-1" class="dark-input text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Sampler</label>
+                                <input type="text" id="gen-sampler" placeholder="DPM++ 2M Karras" class="dark-input text-xs">
+                            </div>
+                        </div>
+                    </details>
+                    <div class="flex justify-end gap-3 pt-1">
+                        <button type="button" onclick="Modal.close()" class="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                        <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-violet-600/25">Save to Album</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ══ FULLSCREEN / LIGHTBOX ══ -->
+        <div id="fs-modal" class="fixed inset-0 z-[160] bg-black/96 hidden flex items-center justify-center transition-opacity duration-300 opacity-0" onclick="Lightbox.close(event)">
+            <button class="absolute top-5 right-5 z-[170] p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors" onclick="Lightbox.close(event, true)">
+                <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="relative w-full h-full flex items-center justify-center p-4 md:p-10">
+                <img id="fs-image" src="" alt="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-400 scale-95" onclick="event.stopPropagation()">
+                <div id="fs-pill" class="absolute bottom-6 right-6 max-w-sm w-full pill-glass rounded-2xl p-5 shadow-2xl transition-all duration-400 translate-y-5 opacity-0" onclick="event.stopPropagation()">
+                    <div class="flex items-center gap-2 mb-2.5">
+                        <div class="w-2 h-2 rounded-full bg-violet-400" style="box-shadow:0 0 8px #a78bfa"></div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generation Data</span>
+                    </div>
+                    <div id="fs-tags" class="flex flex-wrap gap-1.5 mb-2.5"></div>
+                    <p id="fs-prompt" class="text-sm text-slate-100 leading-relaxed max-h-28 overflow-y-auto pr-1"></p>
+                    <div id="fs-details" class="hidden mt-3 pt-3 border-t border-white/5 grid grid-cols-2 gap-y-1 gap-x-3 text-xs text-slate-400"></div>
+                    <div class="flex items-center gap-3 mt-4">
+                        <button onclick="Lightbox.copyPrompt()" class="text-xs bg-violet-600/80 hover:bg-violet-500 text-white font-semibold px-4 py-1.5 rounded-lg transition-colors">Copy Prompt</button>
+                        <button id="fs-delete-btn" class="text-xs text-rose-400 hover:text-rose-300 font-medium hidden">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /app-root -->
+
+    <!-- ══ JS MODULES (order matters) ══ -->
+    <script src="js/data/builtins.js"></script>
+    <script src="js/data/store-packs.js"></script>
+    <script src="js/core/db.js"></script>
+    <script src="js/core/toast.js"></script>
+    <script src="js/core/starfield.js"></script>
+    <script src="js/modules/tags.js"></script>
+    <script src="js/modules/profiles.js"></script>
+    <script src="js/modules/gallery.js"></script>
+    <script src="js/modules/lightbox.js"></script>
+    <script src="js/modules/modal.js"></script>
+    <script src="js/modules/store.js"></script>
+    <script src="js/modules/backup.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

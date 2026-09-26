@@ -1,0 +1,110 @@
+/* ============================================================
+   AI.Album — main.css
+   Global styles, theme tokens, reusable component classes.
+   All Tailwind utility classes stay in index.html.
+   ============================================================ */
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(167,139,250,.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,.6); }
+
+/* ── Background canvas ── */
+#starfield-canvas {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    z-index: 0; pointer-events: none;
+}
+.vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(circle at center, transparent 25%, rgba(0,0,0,.55) 100%);
+}
+
+/* ── App root sits above canvas ── */
+#app-root { position: relative; z-index: 2; }
+
+/* ── Animations ── */
+@keyframes glow-pulse {
+    0%,100% { text-shadow: 0 0 8px rgba(167,139,250,.5), 0 0 20px rgba(167,139,250,.2); }
+    50%      { text-shadow: 0 0 16px rgba(167,139,250,.9), 0 0 35px rgba(167,139,250,.4); }
+}
+@keyframes shimmer {
+    0%   { transform: translateX(-160%) skewX(-40deg); }
+    100% { transform: translateX(160%) skewX(-40deg); }
+}
+@keyframes card-glow {
+    0%,100% { box-shadow: 0 0 0 1px rgba(167,139,250,.08), 0 12px 32px rgba(0,0,0,.6); }
+    50%      { box-shadow: 0 0 0 1px rgba(167,139,250,.22), 0 16px 40px rgba(0,0,0,.7), 0 0 24px rgba(167,139,250,.1); }
+}
+
+/* ── Utility classes ── */
+.glow-text { animation: glow-pulse 3.5s ease-in-out infinite; }
+
+/* ── Glass panel ── */
+.pill-glass {
+    background: rgba(10, 8, 28, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(167,139,250,.14);
+}
+
+/* ── Fantasy card ── */
+.fantasy-card {
+    background: linear-gradient(160deg, #1a1235, #0b0820);
+    border: 1px solid rgba(167,139,250,.08);
+    aspect-ratio: 2/3;
+    animation: card-glow 5s ease-in-out infinite;
+}
+.fantasy-card:hover { animation: none; }
+
+/* ── Shimmer host ── */
+.shimmer-host { position: relative; overflow: hidden; }
+.shimmer-host::after {
+    content: '';
+    position: absolute; inset-y: 0; left: 0; width: 45%;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,.12), transparent);
+    animation: shimmer 4.5s ease-in-out infinite;
+    pointer-events: none; z-index: 15;
+}
+
+/* ── Tag chips ── */
+.tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(167,139,250,.15);
+    border: 1px solid rgba(167,139,250,.3);
+    color: #c4b5fd; cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.tag-chip:hover, .tag-chip.selected {
+    background: rgba(167,139,250,.35); border-color: #a78bfa; color: #ede9fe;
+}
+.tag-chip.selected { box-shadow: 0 0 8px rgba(167,139,250,.4); }
+
+/* ── Built-in badge ── */
+.builtin-badge {
+    position: absolute; top: 10px; left: 10px; z-index: 20;
+    font-size: 9px; font-weight: 700; letter-spacing: .06em;
+    padding: 2px 7px; border-radius: 999px;
+    background: rgba(167,139,250,.25); border: 1px solid rgba(167,139,250,.4);
+    color: #ede9fe; backdrop-filter: blur(6px);
+}
+
+/* ── Dark inputs ── */
+.dark-input {
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(167,139,250,.2);
+    color: #e2e8f0; border-radius: 10px;
+    padding: 8px 12px; width: 100%;
+    font-size: .875rem;
+    transition: border-color .2s, box-shadow .2s;
+    font-family: inherit;
+}
+.dark-input:focus {
+    outline: none;
+    border-color: #a78bfa;
+    box-shadow: 0 0 0 2px rgba(167,139,250,.15);
+}
+textarea.dark-input { resize: none; }
